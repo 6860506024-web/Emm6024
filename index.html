@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyberpunk BST with Wires</title>
+    <style>
+        /* =========================================
+           CSS: เวทมนตร์แห่งแสง Neon และสายไฟ
+           ========================================= */
+        body {
+            background-color: #0b0c10;
+            color: #c5c6c7;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding-top: 30px;
+            overflow-x: hidden;
+        }
+
+        .cyber-container {
+            text-align: center;
+            width: 100%;
+        }
+
+        .neon-text {
+            color: #66fcf1;
+            text-shadow: 0 0 10px #66fcf1, 0 0 20px #66fcf1;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            z-index: 10;
+            position: relative;
+        }
+
+        input[type="number"] {
+            background: rgba(31, 40, 51, 0.8);
+            border: 2px solid #45a29e;
+            color: #fff;
+            padding: 10px 15px;
+            font-size: 16px;
+            border-radius: 5px;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        input[type="number"]:focus {
+            border-color: #66fcf1;
+            box-shadow: 0 0 10px #66fcf1;
+        }
+
+        .neon-btn {
+            background: transparent;
+            color: #66fcf1;
+            border: 2px solid #66fcf1;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: 0.3s;
+        }
+
+        .neon-btn:hover {
+            background: #66fcf1;
+            color: #0b0c10;
+            box-shadow: 0 0 15px #66fcf1, 0 0 30px #66fcf1;
+        }
+
+        .reset-btn {
+            color: #ff0055;
+            border-color: #ff0055;
+        }
+
+        .reset-btn:hover {
+            background: #ff0055;
+            color: #fff;
+            box-shadow: 0 0 15px #ff0055, 0 0 30px #ff0055;
+        }
+
+        /* พื้นที่แสดงต้นไม้และสายไฟ */
+        #tree-canvas {
+            margin-top: 40px;
+            position: relative;
+            width: 100vw;
+            height: 600px;
+        }
+
+        /* SVG สำหรับวาดสายไฟ */
+        #wires {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* สไตล์สายไฟ (มี Animation ให้ดูเหมือนพลังงานไหลผ่าน) */
+        .wire-path {
+            fill: none;
+            stroke: #ff0055; /* สีสายไฟ นีออนชมพู */
+            stroke-width: 3;
+            filter: drop-shadow(0 0 5px #ff0055);
+            stroke-dasharray: 10;
+            animation: flow 1s linear infinite;
+        }
+
+        @keyframes flow {
+            to { stroke-dashoffset: -20; }
+        }
+
+        /* สไตล์โหนด */
+        .tree-node {
+            position: absolute; /* เปลี่ยนเป็น absolute เพื่อวางตามพิกัด X, Y */
+            width: 50px;
+            height: 50px;
+            background-color: #1f2833;
+            border: 3px solid #66fcf1;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 0 15px #66fcf1 inset, 0 0 20px #66fcf1;
+            transform: translate(-50%, -50%); /* จัดให้อยู่กึ่งกลางพิกัดพอดี */
+            z-index: 2;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            80% { transform: translate(-50%, -50%) scale(1.2); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="cyber-container">
+        <h1 class="neon-text">DATA NODE ROUTER (BST)</h1>
+        
+        <div class="controls">
+            <input type="number" id="nodeValue" placeholder="ป้อนตัวเลข..." autocomplete="off" onkeypress="handleKeyPress(event)">
+            <button class="neon-btn" onclick="addNode()">+ INSERT</button>
+            <button class="neon-btn reset-btn" onclick="resetTree()">RESET</button>
+        </div>
+
+        <div id="tree-canvas">
+            <svg id="wires"></svg>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================
+           JavaScript: สร้างโครงสร้าง BST และวาดกราฟิก
+           ========================================= */
+        
+        // คลาสสร้าง Node ใน Binary Search Tree
+        class Node {
+            constructor(value) {
+                this.value = value;
+                this.left = null;
+                this.right = null;
+            }
+        }
+
+        let root = null;
+
+        // ฟังก์ชันหลักตอนกดปุ่ม Insert
+        function addNode() {
+            const inputField = document.getElementById('nodeValue');
+            const val = parseInt(inputField.value);
+
+            if (isNaN(val)) {
+                alert("กรุณาใส่ตัวเลขสิแฮกเกอร์!");
+                inputField.focus();
+                return;
+            }
+
+            // ใส่ข้อมูลลงใน Tree
+            if (root === null) {
+                root = new Node(val);
+            } else {
+                insertIntoBST(root, val);
+            }
+
+            inputField.value = "";
+            inputField.focus();
+            
+            // วาดต้นไม้ใหม่ทั้งหมด
+            renderTree();
+        }
+
+        // ลอจิกของ Binary Search Tree (น้อยไปซ้าย มากไปขวา)
+        function insertIntoBST(node, val) {
+            if (val < node.value) {
+                if (node.left === null) node.left = new Node(val);
+                else insertIntoBST(node.left, val);
+            } else if (val > node.value) {
+                if (node.right === null) node.right = new Node(val);
+                else insertIntoBST(node.right, val);
+            } else {
+                alert("ข้อมูลซ้ำ! ในระบบมีตัวเลขนี้แล้ว");
+            }
+        }
+
+        function resetTree() {
+            root = null;
+            renderTree();
+        }
+
+        // =========================================
+        // ส่วนของการวาด UI (เส้นสายไฟ และ โหนด)
+        // =========================================
+        function renderTree() {
+            const canvas = document.getElementById('tree-canvas');
+            const svgWires = document.getElementById('wires');
+            
+            // ล้างหน้าจอเก่าออกก่อนวาดใหม่
+            svgWires.innerHTML = '';
+            document.querySelectorAll('.tree-node').forEach(el => el.remove());
+
+            if (root !== null) {
+                // เริ่มวาดจากตรงกลางจอด้านบน
+                const startX = canvas.clientWidth / 2;
+                const startY = 40;
+                const initialOffset = canvas.clientWidth / 4; // ระยะห่างซ้าย-ขวา
+                
+                traverseAndDraw(root, startX, startY, initialOffset);
+            }
+        }
+
+        function traverseAndDraw(node, x, y, offset) {
+            const canvas = document.getElementById('tree-canvas');
+            const svgWires = document.getElementById('wires');
+
+            // วาดสายไฟไปหาลูกฝั่งซ้าย (ถ้ามี)
+            if (node.left !== null) {
+                const childX = x - offset;
+                const childY = y + 80; // ระยะห่างแนวตั้ง
+                drawWire(svgWires, x, y, childX, childY);
+                traverseAndDraw(node.left, childX, childY, offset / 1.8);
+            }
+
+            // วาดสายไฟไปหาลูกฝั่งขวา (ถ้ามี)
+            if (node.right !== null) {
+                const childX = x + offset;
+                const childY = y + 80;
+                drawWire(svgWires, x, y, childX, childY);
+                traverseAndDraw(node.right, childX, childY, offset / 1.8);
+            }
+
+            // สร้างตัววงกลมโหนด
+            const nodeDiv = document.createElement('div');
+            nodeDiv.classList.add('tree-node');
+            nodeDiv.innerText = node.value;
+            nodeDiv.style.left = x + 'px';
+            nodeDiv.style.top = y + 'px';
+            canvas.appendChild(nodeDiv);
+        }
+
+        // ฟังก์ชันวาดสายไฟโค้งๆ (Bezier Curve) ด้วย SVG Path
+        function drawWire(svgElement, startX, startY, endX, endY) {
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            // วาดเส้นโค้ง: ดึงลงมาตรงๆ ก่อนแล้วค่อยหักไปหาเป้าหมาย
+            const d = `M ${startX} ${startY} C ${startX} ${startY + 40}, ${endX} ${endY - 40}, ${endX} ${endY}`;
+            
+            path.setAttribute("d", d);
+            path.setAttribute("class", "wire-path");
+            svgElement.appendChild(path);
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') addNode();
+        }
+
+        // วาดใหม่เมื่อย่อขยายหน้าจอ เพื่อไม่ให้กราฟเบี้ยว
+        window.addEventListener('resize', renderTree);
+
+    </script>
+</body>
+</html>
